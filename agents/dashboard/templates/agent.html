@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ agent }} — Historik</title>
+    <style>
+        @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --bg-canvas: #0B0B0F;
+            --bg-surface: #141418;
+            --bg-surface-raised: #1C1C24;
+            --bg-surface-hover: #24242E;
+            --border-subtle: rgba(255,255,255,0.06);
+            --border-raised: rgba(255,255,255,0.10);
+            --text-primary: #F1F1F3;
+            --text-secondary: #8B8B9E;
+            --text-muted: #7A7A8E;
+            --accent: #6C8BFF;
+            --accent-hover: #8BA4FF;
+            --accent-muted: rgba(108,139,255,0.12);
+            --status-ok: #34D399;
+            --status-error: #F87171;
+            --status-warning: #FBBF24;
+            --status-never: #3D3D50;
+            --status-running: #60A5FA;
+            --badge-ok-bg: rgba(52,211,153,0.15);
+            --badge-error-bg: rgba(248,113,113,0.15);
+            --badge-never-bg: rgba(61,61,80,0.5);
+            --badge-running-bg: rgba(96,165,250,0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+            background: var(--bg-canvas);
+            color: var(--text-primary);
+            padding: 2rem;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .page { max-width: 1000px; margin: 0 auto; }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            text-decoration: none;
+            margin-bottom: 1.25rem;
+            transition: color 0.15s ease;
+            min-height: 44px;
+        }
+        .back-link:hover { color: var(--accent); }
+
+        .page-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .page-header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        .page-header .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        /* ── Agent Stats ── */
+        .agent-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .stat-card {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 8px;
+            padding: 0.75rem;
+        }
+        .stat-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 0.15rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ── Entries ── */
+        .entries { display: flex; flex-direction: column; gap: 0.75rem; }
+
+        .entry {
+            background: var(--bg-surface);
+            border-radius: 10px;
+            padding: 1rem;
+            border-left: 3px solid var(--status-never);
+            border-top: 1px solid var(--border-subtle);
+            border-right: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .entry.ok { border-left-color: var(--status-ok); }
+        .entry.error { border-left-color: var(--status-error); }
+        .entry.running { border-left-color: var(--status-running); }
+
+        .entry-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            flex-wrap: wrap;
+        }
+        .entry-timestamp {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .entry-duration {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+        }
+        .entry-tokens {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--accent);
+        }
+        .entry-tags { display: flex; gap: 0.5rem; align-items: center; margin-left: auto; }
+
+        .entry-tag {
+            font-size: 0.65rem;
+            font-weight: 500;
+            padding: 0.1rem 0.45rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .entry-tag.dry-run { background: var(--accent-muted); color: var(--accent); }
+        .entry-tag.chained {
+            background: rgba(251,191,36,0.12);
+            color: var(--status-warning);
+        }
+
+        .entry-status {
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 0.1rem 0.5rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .entry-status.ok { background: var(--badge-ok-bg); color: var(--status-ok); }
+        .entry-status.error { background: var(--badge-error-bg); color: var(--status-error); }
+        .entry-status.running { background: var(--badge-running-bg); color: var(--status-running); }
+
+        .entry-stdout {
+            background: var(--bg-canvas);
+            border-radius: 6px;
+            padding: 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+            overflow-x: auto;
+        }
+        .entry-stdout pre {
+            all: unset;
+            font-family: inherit;
+            font-size: inherit;
+            color: inherit;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .entry-error {
+            margin-top: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8rem;
+            color: var(--status-error);
+            background: var(--badge-error-bg);
+            border-radius: 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .entry-empty {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .agent-stats { grid-template-columns: repeat(2, 1fr); }
+            .entry-header { gap: 0.4rem; }
+            .entry-tags { margin-left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="page">
+        <a class="back-link" href="/">&larr; Dashboard</a>
+
+        <div class="page-header">
+            <div>
+                <h1>{{ agent }}</h1>
+                <div class="subtitle">{{ entries|length }} körningar</div>
+            </div>
+        </div>
+
+        {% if entries %}
+        {% set total_tokens = entries|sum(attribute='tokens') %}
+        {% set ok_entries = entries|selectattr('status', 'equalto', 'ok')|list|length %}
+        {% set total_dur = entries|sum(attribute='duration_s') %}
+        {% set avg_dur = (total_dur / entries|length)|round(1) if entries|length > 0 else 0 %}
+
+        <!-- Agent Stats -->
+        <div class="agent-stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Tokens</div>
+                <div class="stat-value">{{ '{:,}'.format(total_tokens) }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Success Rate</div>
+                <div class="stat-value" style="color:{% if ok_entries / entries|length >= 0.8 %}var(--status-ok){% elif ok_entries / entries|length >= 0.5 %}var(--status-warning){% else %}var(--status-error){% endif %}">
+                    {{ (ok_entries / entries|length * 100)|round }}%
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Duration</div>
+                <div class="stat-value">{{ avg_dur }}s</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ok / Error</div>
+                <div class="stat-value" style="font-size:1rem;">
+                    <span style="color:var(--status-ok)">{{ ok_entries }}</span>
+                    &middot;
+                    <span style="color:var(--status-error)">{{ entries|length - ok_entries }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Run History -->
+        <div class="entries">
+            {% for e in entries %}
+            <div class="entry {{ e.status }}">
+                <div class="entry-header">
+                    <span class="entry-timestamp">{{ e.ts[:19] }}</span>
+                    <span class="entry-duration">{{ e.duration_s }}s</span>
+                    {% if e.tokens %}
+                    <span class="entry-tokens">{{ '{:,}'.format(e.tokens) }} tok</span>
+                    {% endif %}
+                    <div class="entry-tags">
+                        {% if e.dry_run %}
+                        <span class="entry-tag dry-run">dry-run</span>
+                        {% endif %}
+                        {% if e.chained_from %}
+                        <span class="entry-tag chained">kedjad</span>
+                        {% endif %}
+                        <span class="entry-status {{ e.status }}">{{ e.status }}</span>
+                    </div>
+                </div>
+                <div class="entry-stdout">
+                    <pre>{{ e.stdout or "Ingen output" }}</pre>
+                </div>
+                {% if e.error %}
+                <div class="entry-error">{{ e.error }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="entry-empty">Inga körningar &#8212; agenten har inte startats &#228;n.</div>
+        {% endif %}
+    </div>
+</body>
+</html>

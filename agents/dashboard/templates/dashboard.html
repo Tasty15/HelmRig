@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HelmRig — Analytics</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <style>
+        @import url('https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+
+        :root {
+            --bg-canvas: #0B0B0F;
+            --bg-surface: #141418;
+            --bg-surface-raised: #1C1C24;
+            --bg-surface-hover: #24242E;
+            --border-subtle: rgba(255,255,255,0.06);
+            --border-raised: rgba(255,255,255,0.10);
+            --text-primary: #F1F1F3;
+            --text-secondary: #8B8B9E;
+            --text-muted: #7A7A8E;
+            --accent: #6C8BFF;
+            --accent-hover: #8BA4FF;
+            --accent-muted: rgba(108,139,255,0.12);
+            --status-ok: #34D399;
+            --status-error: #F87171;
+            --status-warning: #FBBF24;
+            --status-never: #3D3D50;
+            --status-running: #60A5FA;
+            --badge-ok-bg: rgba(52,211,153,0.15);
+            --badge-error-bg: rgba(248,113,113,0.15);
+            --badge-never-bg: rgba(61,61,80,0.5);
+            --badge-running-bg: rgba(96,165,250,0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Satoshi', system-ui, -apple-system, sans-serif;
+            background: var(--bg-canvas);
+            color: var(--text-primary);
+            padding: 2rem;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .dashboard { max-width: 1400px; margin: 0 auto; }
+
+        /* ── Header ── */
+        .header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.25rem; }
+        .header h1 { font-size: 1.5rem; font-weight: 600; color: var(--text-primary); }
+        .header-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* ── SSE Indicator ── */
+        #sse-indicator {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+            transition: background 0.3s ease;
+        }
+        #sse-indicator.connected {
+            background: var(--status-ok);
+            animation: sse-pulse 2s ease-in-out infinite;
+        }
+        #sse-indicator.disconnected { background: var(--status-error); animation: none; }
+        @keyframes sse-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+
+        /* ── KPI Cards ── */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+        .kpi {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 1rem;
+        }
+        .kpi-label {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.35rem;
+        }
+        .kpi-value {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            line-height: 1.1;
+        }
+        .kpi-value.mono { font-family: 'JetBrains Mono', monospace; }
+        .kpi-sub {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.15rem;
+        }
+        .kpi .kpi-dot { font-size: 1rem; vertical-align: middle; }
+
+        /* ── Charts Section ── */
+        .section {
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 10px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .section-title {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        /* Token bar chart */
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 0.5rem;
+            height: 120px;
+            padding-bottom: 1.5rem;
+            position: relative;
+        }
+        .chart-bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100%;
+            justify-content: flex-end;
+        }
+        .chart-bar {
+            width: 100%;
+            max-width: 48px;
+            min-height: 4px;
+            border-radius: 4px 4px 0 0;
+            background: var(--accent);
+            transition: height 0.3s ease;
+            position: relative;
+        }
+        .chart-bar:hover { background: var(--accent-hover); }
+        .chart-bar-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.4rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .chart-bar-value {
+            font-size: 0.65rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.15rem;
+        }
+
+        /* ── Tables ── */
+        .table-wrap { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+        }
+        th {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            font-weight: 500;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        td {
+            padding: 0.6rem 0.75rem;
+            border-bottom: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: var(--bg-surface-hover); }
+        td.mono { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+        td.name-col { font-weight: 500; color: var(--text-primary); }
+
+        .status-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            margin-right: 0.35rem;
+            vertical-align: middle;
+        }
+        .status-dot.ok { background: var(--status-ok); }
+        .status-dot.error { background: var(--status-error); }
+        .status-dot.never { background: var(--status-never); }
+        .status-dot.running { background: var(--status-running); }
+
+        .badge-sm {
+            font-size: 0.65rem;
+            font-weight: 500;
+            padding: 0.1rem 0.45rem;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .badge-sm.ok { background: var(--badge-ok-bg); color: var(--status-ok); }
+        .badge-sm.error { background: var(--badge-error-bg); color: var(--status-error); }
+        .badge-sm.never { background: var(--badge-never-bg); color: var(--text-muted); }
+        .badge-sm.running { background: var(--badge-running-bg); color: var(--status-running); }
+
+        /* Agent link */
+        .agent-link {
+            color: var(--text-primary);
+            text-decoration: none;
+            transition: color 0.15s ease;
+        }
+        .agent-link:hover { color: var(--accent); }
+
+        /* ── Cron Timeline ── */
+        .cron-list { display: flex; flex-direction: column; gap: 0.5rem; }
+        .cron-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .cron-item:last-child { border-bottom: none; }
+        .cron-time {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-primary);
+            font-weight: 500;
+            min-width: 80px;
+        }
+        .cron-agent { font-size: 0.8rem; color: var(--text-secondary); }
+        .cron-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            margin-left: auto;
+        }
+        .cron-empty {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            text-align: center;
+            padding: 1.5rem 0;
+        }
+
+        /* ── Empty State ── */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 1rem;
+            color: var(--text-muted);
+        }
+        .empty-state p { font-size: 0.875rem; margin-bottom: 0.5rem; }
+        .empty-state code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: var(--bg-surface);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            color: var(--text-secondary);
+        }
+
+        /* ── Overlord status bar ── */
+        .sys-status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.5rem 0;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+        }
+        .sys-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .sys-dot.alive { background: var(--status-ok); }
+        .sys-dot.stopped { background: var(--status-error); }
+
+        /* ── Toast ── */
+        .toast-container {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            pointer-events: none;
+        }
+        .toast {
+            background: var(--bg-surface-raised);
+            border: 1px solid var(--border-raised);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            max-width: 360px;
+            animation: toast-in 0.3s ease forwards;
+            pointer-events: auto;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+        }
+        .toast.removing { animation: toast-out 0.3s ease forwards; }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-10px); }
+        }
+
+        /* ── Reduced Motion ── */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+            .kpi-value, .chart-bar { transition: none !important; }
+        }
+
+        /* ── Mobile ── */
+        @media (max-width: 768px) {
+            body { padding: 1rem; }
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 0.5rem; }
+            .kpi-value { font-size: 1.25rem; }
+            .chart-bars { height: 80px; }
+            .cron-item { flex-wrap: wrap; gap: 0.35rem; }
+            .cron-label { margin-left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <h1>HelmRig</h1>
+            <span id="sse-indicator" class="disconnected" title="SSE: frankopplad"></span>
+        </div>
+        <div class="header-subtitle">
+            <span>Analytics &middot; Performance &middot; Insights</span>
+            <span style="color:var(--text-muted);font-size:0.75rem;font-family:'JetBrains Mono',monospace;">{{ total_runs }} runs</span>
+        </div>
+
+        <!-- System Status -->
+        <div class="sys-status">
+            <span class="sys-dot {{ 'alive' if overlord_alive else 'stopped' }}"></span>
+            <span>Overlord: {{ 'alive' if overlord_alive else 'stopped' }}</span>
+            <span>{{ agent_count }} agent{{ 'er' if agent_count != 1 else '' }}</span>
+            <span>{{ tokens_total }} total tokens</span>
+        </div>
+
+        {% if agents %}
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi">
+                <div class="kpi-label">Tokens Today</div>
+                <div class="kpi-value mono">{{ "{:,}".format(tokens_today) }}</div>
+                <div class="kpi-sub">{{ "{:,}".format(tokens_total) }} totalt</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Active Agents</div>
+                <div class="kpi-value">{{ active_agents }}</div>
+                <div class="kpi-sub">av {{ agent_count }} senaste 24h</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Success Rate</div>
+                <div class="kpi-value {{ 'ok' if success_rate >= 80 else '' }}" style="color:{% if success_rate >= 80 %}var(--status-ok){% elif success_rate >= 50 %}var(--status-warning){% else %}var(--status-error){% endif %}">
+                    {{ success_rate }}%
+                </div>
+                <div class="kpi-sub">{{ ok_runs }} ok / {{ error_runs }} error</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Avg Duration</div>
+                <div class="kpi-value mono">{{ avg_duration }}s</div>
+                <div class="kpi-sub">per run</div>
+            </div>
+            <div class="kpi">
+                <div class="kpi-label">Top Token Agent</div>
+                <div class="kpi-value" style="font-size:1.1rem;">{{ top_token_agent }}</div>
+                <div class="kpi-sub">mest tokens förbrukade</div>
+            </div>
+        </div>
+
+        <!-- Token Consumption Chart -->
+        <div class="section">
+            <div class="section-title">Token Consumption &mdash; Senaste 7 dagarna</div>
+            {% set max_tokens = tokens_by_day|map(attribute='tokens')|max or 1 %}
+            <div class="chart-bars">
+                {% for day in tokens_by_day %}
+                {% set pct = (day.tokens / max_tokens * 100) if max_tokens > 0 else 0 %}
+                {% set bar_h = [pct|round, 4]|max %}
+                <div class="chart-bar-group" title="{{ day.day }}: {{ '{:,}'.format(day.tokens) }} tokens, {{ day.runs }} runs">
+                    <div class="chart-bar-value">{{ '{:,}'.format(day.tokens) if day.tokens > 0 else '' }}</div>
+                    <div class="chart-bar" style="height:{{ bar_h }}%;"></div>
+                    <div class="chart-bar-label">{{ day.day[-2:] }}/{{ day.day[:2] }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Agent Activity Table -->
+        <div class="section">
+            <div class="section-title">Agent Activity</div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Model</th>
+                            <th>Status</th>
+                            <th>Duration</th>
+                            <th>Tokens</th>
+                            <th>Success</th>
+                            <th>Runs</th>
+                            <th>Next Run</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for a in agents %}
+                        <tr>
+                            <td class="name-col"><a class="agent-link" href="/agent/{{ a.dir }}">{{ a.name }}</a></td>
+                            <td class="mono" style="color:var(--text-muted);font-size:0.7rem;">{{ a.model }}</td>
+                            <td>
+                                <span class="status-dot {{ a.status }}"></span>
+                                <span class="badge-sm {{ a.status }}">{{ a.status }}</span>
+                            </td>
+                            <td class="mono">{{ a.duration_s|round(1) if a.duration_s else '&mdash;' }}</td>
+                            <td class="mono">{{ '{:,}'.format(a.tokens) if a.tokens > 0 else '0' }}</td>
+                            <td class="mono" style="color:{% if a.success_rate >= 80 %}var(--status-ok){% elif a.success_rate >= 50 %}var(--status-warning){% else %}var(--status-error){% endif %}">
+                                {{ a.success_rate }}%
+                            </td>
+                            <td class="mono">{{ a.total_runs }}</td>
+                            <td class="mono" style="color:var(--text-secondary);">
+                                {% if a.next_run %}
+                                {{ a.next_run[11:16] }}
+                                {% elif a.cron %}
+                                <span style="color:var(--text-muted);font-size:0.7rem;">{{ a.cron }}</span>
+                                {% else %}
+                                <span style="color:var(--text-muted);">&#8212;</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Cron Schedule -->
+        {% set upcoming = agents|selectattr('next_run', 'defined')|selectattr('next_run', 'ne', None)|sort(attribute='next_run')|list %}
+        <div class="section">
+            <div class="section-title">Upcoming Runs &mdash; Kommande 24h</div>
+            {% if upcoming %}
+            <div class="cron-list">
+                {% for a in upcoming %}
+                <div class="cron-item">
+                    <span class="cron-time">{{ a.next_run[11:16] }}</span>
+                    <span class="cron-agent">{{ a.name }}</span>
+                    <span class="cron-label">{{ a.cron }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="cron-empty">Inga schemalagda körningar inom de närmaste 7 dagarna.</div>
+            {% endif %}
+        </div>
+
+        {% else %}
+        <!-- Empty State -->
+        <div class="empty-state">
+            <p>Inga agenter hittades</p>
+            <p>Skapa en med <code>harness scaffold &lt;namn&gt;</code></p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        (function() {
+            var evtSource = new EventSource("/events");
+            var indicator = document.getElementById("sse-indicator");
+            var toastContainer = document.getElementById("toast-container");
+
+            evtSource.onopen = function() {
+                indicator.className = "connected";
+                indicator.title = "SSE: ansluten";
+            };
+            evtSource.onerror = function() {
+                indicator.className = "disconnected";
+                indicator.title = "SSE: frankopplad";
+            };
+            evtSource.onmessage = function(e) {
+                try {
+                    var data = JSON.parse(e.data);
+                    var agent = data.agent;
+                    if (!agent) return;
+
+                    var toast = document.createElement("div");
+                    toast.className = "toast";
+                    var statusStr = data.status || "ok";
+                    toast.textContent = agent + ": " + statusStr + (data.duration_s ? " (" + data.duration_s + "s)" : "") + (data.tokens ? " \u00b7 " + data.tokens + " tok" : "");
+                    toastContainer.appendChild(toast);
+                    setTimeout(function() {
+                        toast.className = "toast removing";
+                        setTimeout(function() { toast.remove(); }, 300);
+                    }, 4000);
+
+                    // Auto-reload page after SSE update to refresh stats
+                    // Uses debounce to avoid constant reloads
+                    if (!window._sseReloadTimer) {
+                        window._sseReloadTimer = setTimeout(function() {
+                            window._sseReloadTimer = null;
+                            // Only reload if page is visible (user might be reading history)
+                            if (!document.hidden) {
+                                window.location.reload();
+                            }
+                        }, 5000);
+                    }
+                } catch (err) {
+                    console.error("SSE error:", err);
+                }
+            };
+        })();
+    </script>
+</body>
+</html>

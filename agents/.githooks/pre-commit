@@ -1,0 +1,29 @@
+#!/bin/sh
+# Pre-commit hook: lint + test innan commit
+# Installera: git config core.hooksPath .githooks
+
+echo "🔍 Pre-commit check..."
+
+# Ruff lint
+if command -v ruff >/dev/null 2>&1; then
+    echo "  ruff check..."
+    ruff check . --quiet 2>/dev/null || {
+        echo "❌ ruff: fixa felen ovan eller --no-verify för att hoppa över"
+        exit 1
+    }
+else
+    echo "  ⚠️  ruff inte installerat, hoppar över lint"
+fi
+
+# Pytest
+if command -v pytest >/dev/null 2>&1; then
+    echo "  pytest..."
+    pytest tests/ -q --tb=short 2>/dev/null || {
+        echo "❌ pytest: tester misslyckades"
+        exit 1
+    }
+else
+    echo "  ⚠️  pytest inte installerat, hoppar över tester"
+fi
+
+echo "✅ Pre-commit OK"

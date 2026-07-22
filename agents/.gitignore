@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+*.log
+*.pid
+/.overlord/logs/*.jsonl
+/.overlord/watchdog.log
+/.overlord/queue/*.json
+/logs/*.json
+/ai/.venv/
+graphify-out/
+.superpowers/
