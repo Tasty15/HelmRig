@@ -8,5 +8,5 @@ __pycache__/
 /.overlord/queue/*.json
 /logs/*.json
 /ai/.venv/
-graphify-out/
+# graphify-out: se agents/graphify-out/.gitignore för exkluderingar
 .superpowers/
