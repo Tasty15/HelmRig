@@ -1,0 +1,13 @@
+[Unit]
+Description=HelmRig Overlord Daemon
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT_DIR__/agents
+ExecStart=__ROOT_DIR__/.venv/bin/python3 __ROOT_DIR__/agents/.overlord/overlord.py
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

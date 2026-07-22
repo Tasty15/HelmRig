@@ -21,6 +21,7 @@ VENV_PYTHON = AGENTS_DIR.parent / ".venv" / "bin" / "python3"
 
 sys.path.insert(0, str(AGENTS_DIR))
 from harness import _list_agents, _read_config as _read_agent_config  # noqa: E402
+from cron_journal import load_journal, save_journal, get_missed_slots  # noqa: E402
 
 RUNNING = True
 AGENT_LOCKS: dict[str, float] = {}  # agent_name → timestamp när den startades
@@ -76,11 +77,11 @@ def _cron_field_matches(pattern: str, value: int) -> bool:
     return False
 
 
-def _cron_matches(expr: str) -> bool:
+def _cron_matches(expr: str, dt: datetime | None = None) -> bool:
     fields = expr.strip().split()
     if len(fields) != 5:
         return False
-    now = datetime.now()
+    now = dt if dt is not None else datetime.now()
     minute, hour, dom, month, dow = fields
     if not _cron_field_matches(minute, now.minute):
         return False
@@ -95,13 +96,17 @@ def _cron_matches(expr: str) -> bool:
     return True
 
 
-def _run_agent(agent_dir: Path) -> None:
-    """Kör en agents main.py — skyddad av PID-lock mot dubbla körningar."""
+def _run_agent(agent_dir: Path, cron_expr: str | None = None) -> str:
+    """Kör en agents main.py — skyddad av PID-lock mot dubbla körningar.
+
+    Returns status string: "ok", "fail", "timeout", "skip".
+    """
     agent_name = agent_dir.name
     main_py = agent_dir / "main.py"
     if not main_py.exists():
         _log(f"CRON SKIP {agent_name} — ingen main.py")
-        return
+        _update_journal(agent_name, cron_expr, "skip")
+        return "skip"
 
     # Concurrency-skydd: kolla om agenten redan körs
     lock_file = OVERLORD_DIR / "locks" / f"{agent_name}.pid"
@@ -111,7 +116,7 @@ def _run_agent(agent_dir: Path) -> None:
             pid = int(lock_file.read_text().strip())
             os.kill(pid, 0)  # Lever PID?
             _log(f"CRON SKIP {agent_name} — körs redan (PID {pid})")
-            return
+            return "skip"
         except (ProcessLookupError, ValueError, OSError):
             lock_file.unlink(missing_ok=True)  # Stale lock
 
@@ -129,10 +134,16 @@ def _run_agent(agent_dir: Path) -> None:
         duration = time.time() - start
         if result.returncode == 0:
             _log(f"CRON OK {agent_name} ({duration:.1f}s)")
+            _update_journal(agent_name, cron_expr, "ok")
+            return "ok"
         else:
             _log(f"CRON FAIL {agent_name} ({duration:.1f}s): {result.stderr[:200]}")
+            _update_journal(agent_name, cron_expr, "fail")
+            return "fail"
     except subprocess.TimeoutExpired:
         _log(f"CRON FAIL {agent_name} — timeout (120s)")
+        _update_journal(agent_name, cron_expr, "timeout")
+        return "timeout"
     finally:
         lock_file.unlink(missing_ok=True)
         AGENT_LOCKS.pop(agent_name, None)
@@ -176,6 +187,83 @@ def _stale_lock_cleanup():
             f.unlink(missing_ok=True)
 
 
+def _update_journal(agent_name: str, cron: str | None, status: str):
+    """Uppdatera cron-journalen efter en agentkörning."""
+    if not cron:
+        return
+    journal = load_journal()
+    journal[agent_name] = {
+        "last_run": datetime.now(timezone.utc).isoformat(),
+        "cron": cron,
+        "status": status,
+    }
+    save_journal(journal)
+
+
+def _catch_up(config: dict):
+    """Kör missade cron-jobb sedan senaste Overlord-körning."""
+    journal = load_journal()
+    catch_up_defaults = {"mode": "queue", "max_missed": 5, "ttl_minutes": 120}
+    now = datetime.now()
+
+    for agent_dir in _list_agents():
+        cfg = _read_agent_config(agent_dir) or {}
+        agent_name = agent_dir.name
+        cron = cfg.get("cron")
+        if not cron:
+            continue
+
+        entry = journal.get(agent_name, {})
+        last_run = entry.get("last_run") if isinstance(entry, dict) else None
+        if not last_run:
+            continue  # ny agent, ingen historik
+
+        # Sök 7 dagar bakåt — om last_run är äldre än så, capa för prestanda
+        lookback_limit = now - timedelta(days=7)
+        try:
+            last_dt = datetime.fromisoformat(last_run)
+        except (ValueError, TypeError):
+            continue
+        effective_last = max(last_dt, lookback_limit)
+
+        slots = get_missed_slots(cron, effective_last.isoformat(), now)
+        if not slots:
+            continue
+
+        catch_up = cfg.get("catch_up", {})
+        if isinstance(catch_up, dict):
+            pass
+        else:
+            catch_up = {}
+        mode = catch_up.get("mode", catch_up_defaults["mode"])
+        max_missed = catch_up.get("max_missed", catch_up_defaults["max_missed"])
+        ttl = catch_up.get("ttl_minutes", catch_up_defaults["ttl_minutes"])
+
+        # Filtrera: TTL
+        filtered = [s for s in slots if (now - s).total_seconds() / 60 <= ttl]
+        expired = len(slots) - len(filtered)
+        for s in slots:
+            if (now - s).total_seconds() / 60 > ttl:
+                _log(f"CATCH-UP SKIP {agent_name} — missad slot {s.isoformat()} (TTL {ttl}m utgången)")
+
+        # Capa: max_missed
+        if len(filtered) > max_missed:
+            _log(f"CATCH-UP CAP {agent_name} — {len(filtered)} missade slots, kör de {max_missed} senaste")
+            filtered = filtered[-max_missed:]
+
+        _log(f"CATCH-UP {agent_name} — {len(slots)} missade slots (TTL-bort: {expired}, kör: {len(filtered)})")
+
+        if mode == "skip":
+            continue
+
+        for slot in filtered:
+            _log(f"CATCH-UP RUN {agent_name} — slot {slot.isoformat()}")
+            _run_agent(agent_dir, cron)
+
+    # Spara journal efter catch-up
+    save_journal(load_journal())
+
+
 def main():
     global RUNNING
 
@@ -195,6 +283,9 @@ def main():
     cron_tracker: dict[str, str] = {}
     rotate_every = max(interval * 60, 3600)  # Rotera loggar max 1 gång/timme
     last_rotate = 0.0
+
+    # Catch-up: kör missade cron-jobb från förra sessionen
+    _catch_up(config)
 
     while RUNNING:
         now = datetime.now()
@@ -224,7 +315,8 @@ def main():
 
         # Kör cron-jobb
         for agent_dir in to_run:
-            _run_agent(agent_dir)
+            cfg = _read_agent_config(agent_dir) or {}
+            _run_agent(agent_dir, cfg.get("cron"))
 
         # Vänta
         for _ in range(interval):

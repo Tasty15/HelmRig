@@ -1222,6 +1222,35 @@ def cmd_setup(args: argparse.Namespace) -> None:
             print(f"  ⚠️  composio-core misslyckades, försök manuellt:")
             print(f"       {pip} install composio-core")
 
+    # 7d. Auto-start för Overlord (systemd/Linux eller launchd/macOS)
+    root_dir = str(AGENTS_DIR.parent.resolve())
+    if sys.platform == "linux":
+        service_src = OVERLORD_DIR / "overlord.service"
+        if service_src.exists():
+            systemd_dir = Path(os.path.expanduser("~/.config/systemd/user"))
+            systemd_dir.mkdir(parents=True, exist_ok=True)
+            content = service_src.read_text().replace("__ROOT_DIR__", root_dir)
+            (systemd_dir / "overlord.service").write_text(content)
+            subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True, timeout=30)
+            subprocess.run(["systemctl", "--user", "enable", "overlord.service"], capture_output=True, timeout=30)
+            print("  ✅ Overlord systemd-service installerad — startar automatiskt vid boot")
+        else:
+            print(f"  ⚠️  {service_src} saknas — overlord startar inte automatiskt")
+    elif sys.platform == "darwin":
+        plist_src = OVERLORD_DIR / "overlord.plist"
+        if plist_src.exists():
+            launchd_dir = Path(os.path.expanduser("~/Library/LaunchAgents"))
+            launchd_dir.mkdir(parents=True, exist_ok=True)
+            content = plist_src.read_text().replace("__ROOT_DIR__", root_dir)
+            plist_dst = launchd_dir / "com.helmrig.overlord.plist"
+            plist_dst.write_text(content)
+            subprocess.run(["launchctl", "load", str(plist_dst)], capture_output=True, timeout=30)
+            print("  ✅ Overlord launchd-plist installerad — startar automatiskt vid inloggning")
+        else:
+            print(f"  ⚠️  {plist_src} saknas — overlord startar inte automatiskt")
+    else:
+        print(f"  ⚠️  Auto-start stöds inte på {sys.platform} — starta overlord manuellt")
+
     # Summary
     print()
     print("  ─────────────────────────────────────────────")
