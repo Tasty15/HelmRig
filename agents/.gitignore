@@ -14,3 +14,10 @@ __pycache__/
 /agentkit/.chroma/
 # Crawler cache (runtime SQLite DB)
 /agentkit/.crawler_cache.db
+
+# Personliga agenter (ej pushade till GitHub)
+/morgonbriefing/
+/nyheter/
+/restaurang/
+/vader/
+/veckorapport/
