@@ -1,6 +1,6 @@
 # HelmRig — Context & Arkitektur
 
-> Genererad från graphify-graf: 294 noder · 432 edges · 30 communities
+> Genererad från graphify-graf: 370 noder · 512 edges · 35 communities
 > Commit: `332f2c9` · Uppdaterad: 2026-07-23
 
 ---
@@ -51,7 +51,7 @@ HelmRig/
 
 ## 2. Arkitektur (från graph communities)
 
-Grafen identifierade 32 communities med följande kärnområden (18 visas, 14 tunna utelämnade):
+Grafen identifierade 35 communities med följande kärnområden (19 visas, 16 tunna utelämnade):
 
 ### Community 0 — AgentKit Utilities (18 noder)
 - `agentkit/utils.py`: call_skill, create_model, headroom_memory, load_env
@@ -98,6 +98,31 @@ Grafen identifierade 32 communities med följande kärnområden (18 visas, 14 tu
 - `dashboard/templates/agent.html`: Agent History, Status Badge, Cron Timeline
 - `dashboard/templates/dashboard.html`: KPI Card, Chart Bar, Empty State
 - Design System tokens i `design.md`
+
+### Community 7 — MCP Client (21 noder)
+- `agentkit/mcp.py`: McpClient, create_tools, list_tools_from_server
+- MCP stdio-klient för externa tool-servrar
+
+### Community 8 — Knowledge Base & Memory (16 noder)
+- `agentkit/knowledge.py`: store_result, search
+- `agentkit/memory.py`: store, recall, forget (Chroma vector store)
+- Auto-index agent-resultat, token-snål recall (max 3)
+
+### Community 11 — File Reader (10 noder)
+- `agentkit/file_reader.py`: _read_pdf, _read_docx, _read_text
+- PDF (PyMuPDF), DOCX (python-docx) och text-filer
+
+### Community 12 — Webbcrawler (7 noder)
+- `agentkit/crawler.py`: crawl, _cache_get, _cache_set
+- Crawl4AI wrapper med SQLite-cache
+
+### Community 13 — Tracing (6 noder)
+- `agentkit/tracer.py`: get_langfuse_handler, trace_run
+- Langfuse callback för token/latency-spårning
+
+### Community 16 — Slack-bot (4 noder)
+- `agentkit/slack_bot.py`: listen
+- Poll Slack-kanaler och dispatchera till agenter
 
 ### Community 10 — Agent Management (10 noder)
 - `harness.py`: cmd_install, cmd_remove, cmd_validate
