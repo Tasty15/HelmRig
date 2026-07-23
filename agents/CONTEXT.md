@@ -21,7 +21,16 @@ HelmRig/
     │   ├── alert.py              # E-postnotifikation vid fel
     │   ├── api.py                # Programmatiskt API (get_agent, run_agent, scaffold)
     │   ├── sub_agent.py          # Sub-agent dispatch (anropa agent som tool)
-    │   └── parallel.py           # Parallel fan-out (flera agenter samtidigt)
+    │   ├── parallel.py           # Parallel fan-out (flera agenter samtidigt)
+    │   ├── crawler.py            # [T1] Webbcrawler — Crawl4AI wrapper med SQLite-cache
+    │   ├── memory.py             # [T1] Agentminne — Chroma vector store, max 3 resultat
+    │   ├── mcp.py                # [T1] MCP-klient — anslut till MCP-servrar via stdio
+    │   ├── knowledge.py          # [T2] Knowledge base — auto-index av agent-resultat
+    │   ├── webhook.py            # [T2] Webhook listener — POST /webhook/<agent>
+    │   ├── tracer.py             # [T2] Langfuse tracing — token/tool/latency-spårning
+    │   ├── file_reader.py        # [T3] File reader — PDF, DOCX, text-filer
+    │   ├── api_gateway.py        # [T3] API Gateway — POST /api/run/<agent>
+    │   └── slack_bot.py          # [T3] Slack-bot — lyssna och dispatchera till agent
     ├── .overlord/                # Central övervakning
     │   ├── config.yaml           # Defaults, overrides, watchdog, queue
     │   ├── overlord.py           # Daemon: watchdog + health + queue consumer
@@ -284,7 +293,7 @@ Värden slås samman i denna ordning (senare vinner):
 | **Parallel fan-out** | `agentkit.parallel.fan_out()` — kör flera instanser av samma agent parallellt med ThreadPoolExecutor. |
 | **Overlord** | Daemon som watchar loggar, startar om crashade agenter, kör hälsokoller och konsumerar jobbkö. Kan köra cron-jobb parallellt via `max_concurrent_cron`. |
 | **Jobbkö** | Om max_concurrent=1 och en agent körs, hamnar nästa i kön (JSON-filer i `.overlord/queue/`). |
-| **Agentkit** | Gemensamma moduler: utils (rtk, headroom, env, secrets), api, alert, sub_agent, parallel. |
+| **Agentkit** | Gemensamma moduler: utils (rtk, headroom, env, secrets), api, alert, sub_agent, parallel, crawler, memory, mcp, knowledge, webhook, tracer, file_reader, api_gateway, slack_bot. |
 
 ---
 

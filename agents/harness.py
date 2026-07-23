@@ -1336,6 +1336,24 @@ def cmd_doctor(args: argparse.Namespace) -> None:
     except FileNotFoundError:
         print("    composio CLI inte installerat")
 
+    # Kolla valfria agentkit-moduler
+    print()
+    print("  🔧 Agentkit extra-moduler:")
+    _opt_modules = {
+        "crawler": ("crawl4ai", "Webbcrawler (Crawl4AI)"),
+        "memory": ("chromadb", "Vector store (Chroma)"),
+        "mcp": ("mcp", "MCP-klient"),
+        "tracer": ("langfuse", "Langfuse tracing"),
+        "file_reader": ("pymupdf", "PDF-läsning (PyMuPDF)"),
+    }
+    for mod_name, (pkg, label) in _opt_modules.items():
+        try:
+            importlib.import_module(pkg)
+            print(f"    ✅ {mod_name} — {label}")
+        except ImportError:
+            print(f"    ❌ {mod_name} — {label}")
+            print(f"       pip install -e \"agents/[{mod_name}]\"")
+
     print()
     print("  💡 Installera saknade verktyg:")
     print("    rtk:      curl -fsSL https://rtk.dev/install | bash")

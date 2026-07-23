@@ -43,13 +43,22 @@ agents/<name>/
 ## Arkitektur
 
 ```
-harness.py               ← CLI: allt börjar här
-├── agentkit/utils.py    ← Delade verktyg (rtk, env, call_skill, headroom)
-├── agentkit/api.py      ← Programmatiskt API (skapa, kör, logga agenter i kod)
-├── agentkit/alert.py    ← E-postnotifikation via Composio Gmail
-├── .overlord/overlord.py← Daemon: watchdog, health, jobbkö, cron
-├── dashboard/app.py     ← Flask + htmx (port 5050)
-└── agents/<name>/       ← Agentkataloger med LangGraph-pipelines
+harness.py                ← CLI: allt börjar här
+├── agentkit/utils.py     ← Delade verktyg (rtk, env, call_skill, headroom)
+├── agentkit/api.py       ← Programmatiskt API (skapa, kör, logga agenter i kod)
+├── agentkit/alert.py     ← E-postnotifikation via Composio Gmail
+├── agentkit/crawler.py   ← [T1] Crawl4AI webbcrawler med SQLite-cache
+├── agentkit/memory.py    ← [T1] Chroma vector store (max 3 resultat)
+├── agentkit/mcp.py       ← [T1] MCP-klient för externa tool-servrar
+├── agentkit/knowledge.py ← [T2] Auto-index av agent-resultat i Chroma
+├── agentkit/webhook.py   ← [T2] Webhook listener (POST → agent)
+├── agentkit/tracer.py    ← [T2] Langfuse tracing (token/tool/latency)
+├── agentkit/file_reader.py← [T3] PDF/DOCX/text-läsning
+├── agentkit/api_gateway.py← [T3] REST API (POST /api/run/<agent>)
+├── agentkit/slack_bot.py ← [T3] Slack-bot (lyssna → dispatchera)
+├── .overlord/overlord.py ← Daemon: watchdog, health, jobbkö, cron
+├── dashboard/app.py      ← Flask + htmx (port 5050) + blueprints
+└── agents/<name>/        ← Agentkataloger med LangGraph-pipelines
 ```
 
 ## Konfiguration

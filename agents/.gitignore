@@ -10,3 +10,7 @@ __pycache__/
 /ai/.venv/
 # graphify-out: se agents/graphify-out/.gitignore för exkluderingar
 .superpowers/
+# Chroma vector store (runtime data)
+/agentkit/.chroma/
+# Crawler cache (runtime SQLite DB)
+/agentkit/.crawler_cache.db

@@ -10,10 +10,22 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
+import sys
 import yaml
 from flask import Flask, Response, abort, render_template, request, stream_with_context
 
+# Se till att agents/-katalogen är i sys.path för agentkit-imports
+_agents_dir = Path(__file__).parent.parent
+if str(_agents_dir) not in sys.path:
+    sys.path.insert(0, str(_agents_dir))
+
 app = Flask(__name__)
+
+# Registrera API Gateway + Webhook blueprints
+from agentkit.api_gateway import api_bp
+from agentkit.webhook import webhook_bp
+app.register_blueprint(api_bp)
+app.register_blueprint(webhook_bp)
 
 AGENTS_DIR = Path(__file__).parent.parent
 LOGS_DIR = AGENTS_DIR / ".overlord" / "logs"
