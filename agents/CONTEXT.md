@@ -1,7 +1,7 @@
 # HelmRig — Context & Arkitektur
 
-> Genererad från graphify-graf: 239 noder · 359 edges · 32 communities
-> Commit: `976b125` (med unstaged ändringar) · Uppdaterad: 2026-07-22
+> Genererad från graphify-graf: 294 noder · 432 edges · 30 communities
+> Commit: `332f2c9` · Uppdaterad: 2026-07-23
 
 ---
 
@@ -19,7 +19,9 @@ HelmRig/
     ├── agentkit/                 # Delade moduler
     │   ├── utils.py              # rtk_run, headroom_memory, load_env, call_skill, mask_secrets
     │   ├── alert.py              # E-postnotifikation vid fel
-    │   └── api.py                # Programmatiskt API (get_agent, run_agent, scaffold)
+    │   ├── api.py                # Programmatiskt API (get_agent, run_agent, scaffold)
+    │   ├── sub_agent.py          # Sub-agent dispatch (anropa agent som tool)
+    │   └── parallel.py           # Parallel fan-out (flera agenter samtidigt)
     ├── .overlord/                # Central övervakning
     │   ├── config.yaml           # Defaults, overrides, watchdog, queue
     │   ├── overlord.py           # Daemon: watchdog + health + queue consumer
@@ -273,14 +275,16 @@ Värden slås samman i denna ordning (senare vinner):
 ## 6. Viktiga koncept
 
 | Koncept | Förklaring |
-|---|---|
+|---|---|---|
 | **Skill** | Python-modul med `run(**kwargs) → dict`. Importeras dynamiskt av agenten. |
 | **Chain** | Agentkedjor: output från agent A → input till agent B via `CHAIN_OUTPUT: JSON`. |
 | **Dry-run** | `--dry-run` flagga + env `HARNESS_DRY_RUN=true`. Skills med `side_effect: true` kollas innan körning. |
 | **Sandbox** | `sandbox: true` på en skill rensar miljövariabler (behåller PATH + ALLOWED_*). |
-| **Overlord** | Daemon som watchar loggar, startar om crashade agenter, kör hälsokoller och konsumerar jobbkö. |
+| **Sub-agent dispatch** | `agentkit.sub_agent.dispatch()` — anropa en annan agent programmatiskt, få svar. Används som tool i ReAct-agent. |
+| **Parallel fan-out** | `agentkit.parallel.fan_out()` — kör flera instanser av samma agent parallellt med ThreadPoolExecutor. |
+| **Overlord** | Daemon som watchar loggar, startar om crashade agenter, kör hälsokoller och konsumerar jobbkö. Kan köra cron-jobb parallellt via `max_concurrent_cron`. |
 | **Jobbkö** | Om max_concurrent=1 och en agent körs, hamnar nästa i kön (JSON-filer i `.overlord/queue/`). |
-| **Agentkit** | Gemensamma moduler: utils (rtk, headroom, env, secrets), api, alert (e-post). |
+| **Agentkit** | Gemensamma moduler: utils (rtk, headroom, env, secrets), api, alert, sub_agent, parallel. |
 
 ---
 
@@ -346,4 +350,4 @@ harness log my-agent --tail
 git add -A && git commit -m "feat: my-agent"
 ```
 
-Pre-commit hooken kör automatiskt `ruff check` + `pytest tests/` (25 tester i 3 filer) före varje commit.
+Pre-commit hooken kör automatiskt `ruff check` + `pytest tests/` (37 tester i 4 filer) före varje commit.

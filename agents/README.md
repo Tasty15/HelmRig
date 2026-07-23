@@ -38,6 +38,56 @@ agents/<name>/
     └── example_skill.py # Pluggable Python-moduler
 ```
 
+## Nya features
+
+### Sub-agent dispatch
+
+En agent kan anropa en annan agent programmatiskt via `agentkit.sub_agent.dispatch()`.
+Perfekt för orchestrator-agenter som delegerar till specialister:
+
+```python
+from agentkit.sub_agent import dispatch
+
+result = dispatch("analyst", input_data={"query": "data"}, timeout=120)
+print(result["output"])  # sub-agentens stdout
+```
+
+Används som tool i ReAct-agent genom att lägga till i `agent.yaml`:
+
+```yaml
+skills:
+  - name: dispatch
+    module: agentkit.sub_agent
+    description: "Anropa specialist-agent. input_data skickas som CHAIN_INPUT_* env vars."
+```
+
+### Parallel fan-out
+
+Kör flera instanser av samma agent parallellt:
+
+```python
+from agentkit.parallel import fan_out
+
+results = fan_out("analyst", [
+    {"query": "data1"},
+    {"query": "data2"},
+], max_workers=4)
+```
+
+### Overlord parallel cron
+
+Overlord kan köra flera cron-jobb samtidigt. Styrs i `.overlord/config.yaml`:
+
+```yaml
+watchdog:
+  interval_s: 60
+  max_concurrent_cron: 4   # 0-1 = sekventiellt (default), >1 = parallellt
+```
+
+Thread-safe in-memory locks per agent ersätter gamla PID-filer.
+
+---
+
 ## Arkitektur
 
 ```
@@ -45,7 +95,9 @@ harness.py               ← CLI: allt börjar här
 ├── agentkit/utils.py    ← Delade verktyg (rtk, env, call_skill, headroom)
 ├── agentkit/api.py      ← Programmatiskt API (skapa, kör, logga agenter i kod)
 ├── agentkit/alert.py    ← E-postnotifikation via Composio Gmail
-├── .overlord/overlord.py← Daemon: watchdog, health, jobbkö, cron
+├── agentkit/sub_agent.py← Sub-agent dispatch (anropa agent som tool)
+├── agentkit/parallel.py ← Parallel fan-out (flera agenter samtidigt)
+├── .overlord/overlord.py← Daemon: watchdog, health, jobbkö, cron, parallel cron
 ├── dashboard/app.py     ← Flask + htmx (port 5050)
 └── agents/<name>/       ← Agentkataloger med LangGraph-pipelines
 ```
@@ -66,5 +118,5 @@ harness.py               ← CLI: allt börjar här
 
 ```bash
 git config core.hooksPath .githooks  # Aktivera pre-commit hook
-pytest tests/ -v                     # Kör tester (25 st i 3 filer)
+pytest tests/ -v                     # Kör tester (37 st i 4 filer)
 ```
