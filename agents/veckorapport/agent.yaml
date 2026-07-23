@@ -1,0 +1,10 @@
+name: "veckorapport"
+description: "Analyserar veckans agent-loggar och skickar veckorapport"
+instructions: |
+  Du analyserar loggar från veckans agentkörningar.
+  Rapportera: mest körda agenter, vanligaste felen, tokenförbrukning.
+model:
+  provider: deepseek
+  name: deepseek-chat
+  api_base: https://api.deepseek.com/v1
+cron: "0 18 * * 0"

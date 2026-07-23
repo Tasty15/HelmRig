@@ -1,0 +1,10 @@
+name: "restaurang"
+description: "Hämtar dagens matinspiration från svenska receptsajter"
+instructions: |
+  Du hämtar ett recept eller matinspiration och sammanfattar.
+  Markera vegetariska alternativ med 🌱.
+model:
+  provider: deepseek
+  name: deepseek-chat
+  api_base: https://api.deepseek.com/v1
+cron: "0 11 * * 1-5"

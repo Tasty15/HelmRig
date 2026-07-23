@@ -31,6 +31,11 @@ HelmRig/
     │   ├── file_reader.py        # [T3] File reader — PDF, DOCX, text-filer
     │   ├── api_gateway.py        # [T3] API Gateway — POST /api/run/<agent>
     │   └── slack_bot.py          # [T3] Slack-bot — lyssna och dispatchera till agent
+    ├── morgonbriefing/           # Daglig Gmail-sammanfattning (cron 07:00)
+    ├── nyheter/                  # RSS-nyheter från SVT/DN (cron 08:00)
+    ├── restaurang/               # Matinspiration från receptsajter (cron 11:00)
+    ├── veckorapport/             # Logganalys varje söndag (cron 18:00 sön)
+    ├── vader/                    # Väder + klädselförslag (cron 06:30)
     ├── .overlord/                # Central övervakning
     │   ├── config.yaml           # Defaults, overrides, watchdog, queue
     │   ├── overlord.py           # Daemon: watchdog + health + queue consumer
@@ -40,8 +45,7 @@ HelmRig/
     │   └── templates/            # agent.html, dashboard.html
     ├── .serena/                  # Serena IDE projektkonfiguration
     ├── design.md                 # UI-design guidelines för dashboard
-    ├── tests/                    # pytest-tester (25 st i 3 filer)
-    ├── test-fail/                # Test-agent (används i tester)
+    ├── tests/                    # pytest-tester (37 st i 4 filer)
     ├── graphify-out/             # Knowledge graph (graph.html, GRAPH_REPORT.md)
     ├── .githooks/pre-commit      # ruff + pytest vid commit
     └── .github/workflows/ci.yml  # GitHub Actions
@@ -340,7 +344,21 @@ harness queue list|flush             # Jobbkö
 
 ---
 
-## 8. Graf-översikt
+## 8. Dagliga agenter (vardags-workflows)
+
+Fem fördefinierade agenter som körs på cron och skickar resultat till `ALERT_EMAIL_TO` via Composio Gmail:
+
+| Agent | Cron | Vad den gör | Moduler |
+|-------|------|-------------|---------|
+| **morgonbriefing** | `0 7 * * 1-5` | Hämtar olästa Gmail, summerar i 3-5 punkter | utils, alert, Composio Gmail |
+| **nyheter** | `0 8 * * 1-5` | RSS från SVT/DN, kategoriserar i Ekonomi/Tech/Politik | utils, urllib |
+| **restaurang** | `0 11 * * 1-5` | Recept från koket.se/ica.se, sparar i Chroma | utils, crawler, memory |
+| **vader** | `0 6 * * 1-5` | Väder från wttr.in, LLM föreslår klädsel | utils, memory |
+| **veckorapport** | `0 18 * * 0` | Analyserar `.overlord/logs/`, rapporterar trender | utils, memory |
+
+Alla använder DeepSeek V4 Flash (`deepseek-chat`) via `create_model()` och skickar mejl via `composio execute GMAIL_SEND_EMAIL`.
+
+## 9. Graf-översikt
 
 En interaktiv graf över kodbasen finns i:
 

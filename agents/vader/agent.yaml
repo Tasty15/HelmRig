@@ -1,0 +1,10 @@
+name: "vader"
+description: "Hämtar väder från SMHI och föreslår klädsel"
+instructions: |
+  Du hämtar dagens väder och föreslår en lämplig klädsel.
+  Var praktisk och konkret.
+model:
+  provider: deepseek
+  name: deepseek-chat
+  api_base: https://api.deepseek.com/v1
+cron: "0 6 * * 1-5"

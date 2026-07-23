@@ -1,0 +1,10 @@
+name: "morgonbriefing"
+description: "Sammanfattar olästa mejl från Gmail varje morgon"
+instructions: |
+  Du läser olästa mejl och summerar dem i 3-5 punkter.
+  Markera deadlines och viktiga ärenden.
+model:
+  provider: deepseek
+  name: deepseek-chat
+  api_base: https://api.deepseek.com/v1
+cron: "0 7 * * 1-5"

@@ -1,0 +1,10 @@
+name: "nyheter"
+description: "Crawlar SVT/DI och sammanfattar dagens nyheter per ämne"
+instructions: |
+  Du sammanfattar dagens nyheter från två källor.
+  Kategorisera i Ekonomi/Tech/Politik. En mening per kategori.
+model:
+  provider: deepseek
+  name: deepseek-chat
+  api_base: https://api.deepseek.com/v1
+cron: "0 8 * * 1-5"
