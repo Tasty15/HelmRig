@@ -12,3 +12,4 @@ health:
 overrides: {}
 watchdog:
   interval_s: 60
+  max_concurrent_cron: 4

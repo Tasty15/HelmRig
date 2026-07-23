@@ -10,6 +10,9 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
 import yaml
 
 OVERLORD_DIR = Path(__file__).parent
@@ -25,6 +28,17 @@ from cron_journal import load_journal, save_journal, get_missed_slots  # noqa: E
 
 RUNNING = True
 AGENT_LOCKS: dict[str, float] = {}  # agent_name → timestamp när den startades
+
+# Thread-safe per-agent lås (ersätter PID-filer för parallell cron)
+_agent_run_locks: dict[str, threading.Lock] = {}
+_locks_lock = threading.Lock()
+
+
+def _get_agent_lock(name: str) -> threading.Lock:
+    with _locks_lock:
+        if name not in _agent_run_locks:
+            _agent_run_locks[name] = threading.Lock()
+        return _agent_run_locks[name]
 
 
 def _log(msg: str):
@@ -108,20 +122,13 @@ def _run_agent(agent_dir: Path, cron_expr: str | None = None) -> str:
         _update_journal(agent_name, cron_expr, "skip")
         return "skip"
 
-    # Concurrency-skydd: kolla om agenten redan körs
-    lock_file = OVERLORD_DIR / "locks" / f"{agent_name}.pid"
-    lock_file.parent.mkdir(parents=True, exist_ok=True)
-    if lock_file.exists():
-        try:
-            pid = int(lock_file.read_text().strip())
-            os.kill(pid, 0)  # Lever PID?
-            _log(f"CRON SKIP {agent_name} — körs redan (PID {pid})")
-            return "skip"
-        except (ProcessLookupError, ValueError, OSError):
-            lock_file.unlink(missing_ok=True)  # Stale lock
+    # Concurrency-skydd: in-memory lock per agent (thread-safe, fungerar med parallell cron)
+    lock = _get_agent_lock(agent_name)
+    if not lock.acquire(blocking=False):
+        _log(f"CRON SKIP {agent_name} — körs redan")
+        return "skip"
 
     python = str(VENV_PYTHON) if VENV_PYTHON.exists() else "python3"
-    lock_file.write_text(str(os.getpid()))
     AGENT_LOCKS[agent_name] = time.time()
     _log(f"CRON RUN {agent_name}")
 
@@ -145,7 +152,7 @@ def _run_agent(agent_dir: Path, cron_expr: str | None = None) -> str:
         _update_journal(agent_name, cron_expr, "timeout")
         return "timeout"
     finally:
-        lock_file.unlink(missing_ok=True)
+        lock.release()
         AGENT_LOCKS.pop(agent_name, None)
 
 
@@ -280,6 +287,7 @@ def main():
     config = _load_config()
     interval = config.get("watchdog", {}).get("interval_s", 60)
     retention = config.get("log_retention_days", 30)
+    max_concurrent = config.get("watchdog", {}).get("max_concurrent_cron", 1)
     cron_tracker: dict[str, str] = {}
     rotate_every = max(interval * 60, 3600)  # Rotera loggar max 1 gång/timme
     last_rotate = 0.0
@@ -313,10 +321,20 @@ def main():
             cfg = _read_agent_config(agent_dir) or {}
             health_check(agent_dir, cfg)
 
-        # Kör cron-jobb
-        for agent_dir in to_run:
-            cfg = _read_agent_config(agent_dir) or {}
-            _run_agent(agent_dir, cfg.get("cron"))
+        # Kör cron-jobb (parallellt om max_concurrent > 1)
+        if to_run:
+            if max_concurrent > 1:
+                with ThreadPoolExecutor(max_workers=max_concurrent) as ex:
+                    cfg_map = {
+                        d: (_read_agent_config(d) or {}).get("cron")
+                        for d in to_run
+                    }
+                    # ponytail: list() driver executor.map så alla tasks startar
+                    list(ex.map(lambda d: _run_agent(d, cfg_map[d]), to_run))
+            else:
+                for agent_dir in to_run:
+                    cfg = _read_agent_config(agent_dir) or {}
+                    _run_agent(agent_dir, cfg.get("cron"))
 
         # Vänta
         for _ in range(interval):
